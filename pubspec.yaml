@@ -22,3 +22,7 @@ dependencies:
 
   # Selector de archivos para desktop
   file_picker: ^5.2.5
+
+  # Serviraán para hacer las consultas a las páginas
+  http: ^0.13.5
+  html: ^0.15.0
