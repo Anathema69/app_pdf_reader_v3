@@ -1,0 +1,24 @@
+name: pdf_qr_detector
+description: Detecta QR en PDFs y devuelve JSON.
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ">=2.18.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Renderizado de PDF a imagen (PNG) en Windows, macOS y más :contentReference[oaicite:0]{index=0}
+  pdfx: ^2.9.2
+
+  # Manipulación de imágenes en Dart
+  image: ^4.0.17
+
+  # Decodificación de QR Codes en Dart :contentReference[oaicite:1]{index=1}
+  zxing2: ^0.2.4
+
+  # Selector de archivos para desktop
+  file_picker: ^5.2.5
