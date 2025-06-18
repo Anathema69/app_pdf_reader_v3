@@ -25,25 +25,40 @@ Map<String, String>? parsePipeDelimited(String input) {
   return out.isEmpty ? null : out;
 }
 
-/// Recibe un string [qr]. Si es URL válida (http/https) e
-/// imprime un HTML con tablas de <tr><td>Clave:</td><td>Valor</td></tr>,
-/// extrae esos pares. Si obtiene datos retorna {'url': qr, ...campos...}.
-/// Si status != 200 o no halla filas, o no es URL, intenta parsePipeDelimited.
-/// Si todo falla, retorna {'value': qr}.
+/// Recibe un string [qr].
+/// 1) Si al “pipe‐parsearlo” obtenemos un único par
+///    {'http'|'https': '//...'}, lo reconstruimos como URL.
+/// 2) Si es una URL válida (http/https), hace GET y trata de extraer
+///    todas las filas de <tr><td><span>Clave:</span></td><td>Valor</td></tr>.
+///    Si responde 200 y hay al menos un campo, devuelve {'url': ..., clave: valor, ...}.
+///    Si falla la petición (status != 200) o no hay campos, devuelve {'value': qr}.
+/// 3) Si no era URL, y parsePipeDelimited devuelve campos útiles,
+///    devuelve directamente ese Map<String, String>.
+/// 4) En cualquier otro caso, devuelve {'value': qr}.
 Future<Map<String, dynamic>> fetchQrUrlData(String qr) async {
-  // 1) Intentamos tratarlo como URL
-  final uri = Uri.tryParse(qr);
+  // 1) Detectar casos tipo {"https": "//..."} generados por parsePipeDelimited
+  final pipeParsed = parsePipeDelimited(qr);
+  var qrToProcess = qr;
+  if (pipeParsed != null && pipeParsed.length == 1) {
+    final scheme = pipeParsed.keys.first;
+    final rest = pipeParsed.values.first;
+    if ((scheme == 'http' || scheme == 'https') && rest.startsWith('//')) {
+      qrToProcess = '$scheme:$rest';
+    }
+  }
+
+  // 2) Intentar tratar qrToProcess como URL
+  final uri = Uri.tryParse(qrToProcess);
   if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
     try {
       final resp = await http.get(uri);
       if (resp.statusCode == 200) {
         final document = parse(resp.body);
-        final data = <String, dynamic>{ 'url': qr };
-        // Buscamos todas las filas de tabla
+        final data = <String, dynamic>{ 'url': qrToProcess };
+
         for (final row in document.querySelectorAll('tr')) {
           final cols = row.querySelectorAll('td');
           if (cols.length >= 2) {
-            // La primera <td> contiene el <span> con la clave
             final span = cols[0].querySelector('span');
             final key = span?.text.trim().replaceAll(':', '') ?? '';
             final val = cols[1].text.trim();
@@ -52,22 +67,23 @@ Future<Map<String, dynamic>> fetchQrUrlData(String qr) async {
             }
           }
         }
-        // Si encontramos al menos un campo, devolvemos el mapa
+
         if (data.length > 1) {
           return data;
         }
       }
+      // Si status != 200 o no extrajo campos, devolvemos crudo
+      return {'value': qr};
     } catch (_) {
-      // cualquier error en HTTP o parseo, caemos al fallback
+      return {'value': qr};
     }
   }
 
-  // 2) No es URL o no devolvió campos útiles: probamos parsePipeDelimited
-  final parsed = parsePipeDelimited(qr);
-  if (parsed != null) {
-    return parsed;
+  // 3) No es URL o no pudo procesarse como tal: intentar pipe‐parsing
+  if (pipeParsed != null) {
+    return pipeParsed;
   }
 
-  // 3) Tampoco: devolvemos el valor crudo
+  // 4) Fallback final: valor crudo
   return {'value': qr};
 }
